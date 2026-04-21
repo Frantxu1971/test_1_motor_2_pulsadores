@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test · Actividad 2 · Pulsadores, L293D y Motor DC</title>
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --primary: #01696f;
+    --primary-dark: #0c4e54;
+    --text: #1e1c17;
+    --muted: #6b6a65;
+    --border: #d4d1ca;
+    --correct: #437a22;
+    --correct-bg: #eaf3e2;
+    --wrong: #a12c3a;
+    --wrong-bg: #f8e6e8;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  .screen { display: none; max-width: 720px; margin: 0 auto; padding: 2rem 1rem; }
+  .screen.active { display: block; }
+
+  .card { background: var(--surface); border-radius: var(--radius); padding: 2rem; box-shadow: 0 2px 12px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; color: var(--primary-dark); margin-bottom: .5rem; }
+  h2 { font-size: 1.2rem; color: var(--primary-dark); margin-bottom: 1rem; }
+  .subtitle { color: var(--muted); font-size: .9rem; margin-bottom: 1.5rem; }
+
+  label { display: block; font-size: .9rem; font-weight: 600; margin-bottom: .4rem; color: var(--muted); }
+  input[type="text"] {
+    width: 100%; padding: .75rem 1rem; border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 1rem; color: var(--text);
+    transition: border-color .2s;
+  }
+  input[type="text"]:focus { outline: none; border-color: var(--primary); }
+  .error-msg { color: var(--wrong); font-size: .85rem; margin-top: .4rem; min-height: 1.2em; }
+
+  .btn {
+    display: inline-block; padding: .75rem 2rem; border-radius: 8px; font-size: 1rem;
+    font-weight: 700; cursor: pointer; border: none; transition: background .2s, transform .1s;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-secondary { background: var(--border); color: var(--text); }
+  .btn-secondary:hover { background: #c4c1ba; }
+
+  .progress-bar { background: var(--border); border-radius: 99px; height: 8px; margin-bottom: 1.5rem; }
+  .progress-fill { background: var(--primary); height: 8px; border-radius: 99px; transition: width .3s; }
+  .progress-label { font-size: .82rem; color: var(--muted); margin-bottom: .4rem; }
+
+  .fase-badge {
+    display: inline-block; font-size: .75rem; font-weight: 700;
+    padding: .2rem .7rem; border-radius: 99px; margin-bottom: .8rem;
+    background: #e0f2f1; color: var(--primary-dark);
+  }
+  .question-text { font-size: 1.05rem; font-weight: 600; margin-bottom: 1.2rem; line-height: 1.5; }
+
+  .options { display: flex; flex-direction: column; gap: .65rem; }
+  .option-btn {
+    display: block; width: 100%; text-align: left; padding: .8rem 1rem;
+    border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface);
+    font-size: .95rem; cursor: pointer; transition: border-color .15s, background .15s;
+    color: var(--text);
+  }
+  .option-btn:hover:not(:disabled) { border-color: var(--primary); background: #f0fafa; }
+  .option-btn.selected { border-color: var(--primary); background: #e6f4f4; }
+  .option-btn.correct { border-color: var(--correct); background: var(--correct-bg); color: var(--correct); font-weight: 700; }
+  .option-btn.wrong { border-color: var(--wrong); background: var(--wrong-bg); color: var(--wrong); font-weight: 700; }
+  .option-btn:disabled { cursor: default; }
+
+  .nav-row { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; }
+  .q-counter { font-size: .88rem; color: var(--muted); }
+
+  /* Resultados */
+  .score-big { font-size: 4rem; font-weight: 900; color: var(--primary); text-align: center; margin: .5rem 0; }
+  .score-label { text-align: center; color: var(--muted); margin-bottom: 1.5rem; }
+  .result-pass { color: var(--correct); font-size: 1.2rem; font-weight: 700; text-align: center; }
+  .result-fail { color: var(--wrong); font-size: 1.2rem; font-weight: 700; text-align: center; }
+
+  .summary-item { padding: .8rem 0; border-bottom: 1px solid var(--border); }
+  .summary-item:last-child { border-bottom: none; }
+  .summary-q { font-size: .9rem; font-weight: 600; margin-bottom: .4rem; }
+  .summary-opt { font-size: .85rem; padding: .3rem .7rem; border-radius: 6px; display: inline-block; }
+  .summary-opt.correct { background: var(--correct-bg); color: var(--correct); }
+  .summary-opt.wrong { background: var(--wrong-bg); color: var(--wrong); }
+  .summary-correct-label { font-size: .8rem; color: var(--correct); margin-top: .3rem; }
+  .fase-tag { font-size: .75rem; color: var(--muted); }
+
+  /* Resguardo PDF */
+  #resguardo { background: #fff; border: 2px solid var(--primary); border-radius: var(--radius); padding: 2rem; margin-top: 1rem; }
+  #resguardo h3 { color: var(--primary-dark); margin-bottom: 1rem; }
+  #resguardo p { margin: .4rem 0; font-size: .95rem; }
+  #resguardo .score-line { font-size: 1.4rem; font-weight: 900; color: var(--correct); margin: 1rem 0; }
+
+  @media print {
+    body * { visibility: hidden; }
+    #resguardo, #resguardo * { visibility: visible; }
+    #resguardo { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 90%; }
+    .no-print { display: none !important; }
+  }
+  @media (max-width: 480px) {
+    .card { padding: 1.2rem; }
+    h1 { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- PANTALLA 1: NOMBRE -->
+<div id="screen-name" class="screen active">
+  <div class="card">
+    <h1>Test · Actividad 2</h1>
+    <p class="subtitle">Pulsadores, Puente H L293D y Motor DC en Tinkercad<br>Módulo 3015 · Equipos Eléctricos y Electrónicos · 1º CFGB</p>
+    <label for="inp-nombre">Nombre</label>
+    <input type="text" id="inp-nombre" placeholder="Tu nombre (empieza por mayúscula)">
+    <div class="error-msg" id="err-nombre"></div>
+    <label for="inp-ap1" style="margin-top:1rem">Primer apellido</label>
+    <input type="text" id="inp-ap1" placeholder="Primer apellido (empieza por mayúscula)">
+    <div class="error-msg" id="err-ap1"></div>
+    <label for="inp-ap2" style="margin-top:1rem">Segundo apellido</label>
+    <input type="text" id="inp-ap2" placeholder="Segundo apellido (empieza por mayúscula)">
+    <div class="error-msg" id="err-ap2"></div>
+    <div style="margin-top:1.5rem">
+      <button class="btn btn-primary" onclick="startTest()">Comenzar el test</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANTALLA 2: PREGUNTAS -->
+<div id="screen-quiz" class="screen">
+  <div class="card">
+    <p class="progress-label" id="prog-label"></p>
+    <div class="progress-bar"><div class="progress-fill" id="prog-fill"></div></div>
+    <div class="fase-badge" id="q-fase"></div>
+    <p class="question-text" id="q-text"></p>
+    <div class="options" id="q-options"></div>
+    <div class="nav-row">
+      <span class="q-counter" id="q-counter"></span>
+      <button class="btn btn-primary" id="btn-next" onclick="nextQ()" disabled>Siguiente</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANTALLA 3: RESULTADOS -->
+<div id="screen-result" class="screen">
+  <div class="card">
+    <h1>Resultado del test</h1>
+    <p class="subtitle" id="res-nombre-label"></p>
+    <div class="score-big" id="res-score"></div>
+    <p class="score-label">puntos sobre 20</p>
+    <p id="res-verdict" style="margin-bottom:1.5rem"></p>
+    <div id="resguardo" style="display:none">
+      <h3>✅ Resguardo de superación</h3>
+      <p><strong>Alumno/a:</strong> <span id="rsg-nombre"></span></p>
+      <p><strong>Actividad:</strong> Actividad 2 · Pulsadores, L293D y Motor DC</p>
+      <p><strong>Módulo:</strong> 3015 · Equipos Eléctricos y Electrónicos · 1º CFGB</p>
+      <p class="score-line">Puntuación: <span id="rsg-score"></span> / 20 — SUPERADO</p>
+      <p><strong>Fecha:</strong> <span id="rsg-fecha"></span></p>
+      <p style="margin-top:.8rem;font-size:.85rem;color:var(--muted)">Sube este resguardo (captura o PDF) a la tarea de Classroom correspondiente.</p>
+      <div style="margin-top:1rem" class="no-print">
+        <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button>
+      </div>
+    </div>
+    <div id="retry-block" style="display:none;margin-bottom:1.5rem">
+      <button class="btn btn-primary" onclick="retryTest()">Volver a intentarlo con preguntas nuevas</button>
+    </div>
+    <div id="retry-pass-block" style="display:none;margin-bottom:1.5rem;margin-top:1rem">
+      <button class="btn btn-secondary" onclick="retryTest()">🔄 Repetir el test</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Corrección detallada</h2>
+    <div id="summary"></div>
+  </div>
+</div>
+
+<script>
+const ALL = [
+  {
+    "fase": 1,
+    "pregunta": "¿Para qué sirve el integrado L293D en este circuito?",
+    "opciones": [
+      "Para medir la temperatura del motor",
+      "Para controlar el sentido de giro y la corriente del motor",
+      "Para leer el estado de los pulsadores",
+      "Para alimentar directamente el Arduino"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 1,
+    "pregunta": "¿Por qué no se puede conectar un motor DC directamente a un pin de Arduino?",
+    "opciones": [
+      "Porque Arduino no tiene pines digitales",
+      "Porque el motor necesita corriente alterna",
+      "Porque los pines de Arduino no pueden suministrar la corriente que necesita el motor",
+      "Porque el motor giraría demasiado rápido"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 1,
+    "pregunta": "¿Qué significa que el L293D es un 'puente H'?",
+    "opciones": [
+      "Que tiene forma de letra H por fuera",
+      "Que puede invertir la polaridad aplicada al motor para cambiar el sentido de giro",
+      "Que solo funciona con motores de corriente alterna",
+      "Que es un sensor de campo magnético"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 1,
+    "pregunta": "¿Cuántos canales de control de motor tiene el L293D?",
+    "opciones": [
+      "1 canal",
+      "3 canales",
+      "2 canales",
+      "4 canales"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 1,
+    "pregunta": "¿Qué función tiene el pin EN1 del L293D?",
+    "opciones": [
+      "Controla la dirección del motor",
+      "Es la salida que va al motor",
+      "Habilita o deshabilita el canal 1 del puente H",
+      "Es el pin de masa del integrado"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 1,
+    "pregunta": "¿Qué ocurre si EN1 del L293D está en nivel bajo (LOW)?",
+    "opciones": [
+      "El motor gira a máxima velocidad",
+      "El canal 1 está deshabilitado y el motor no recibe señal",
+      "El motor gira en sentido contrario",
+      "El L293D se apaga completamente"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 1,
+    "pregunta": "¿Cuál es la diferencia entre VSS y VS en el L293D?",
+    "opciones": [
+      "VSS alimenta la lógica interna del integrado y VS alimenta el motor",
+      "VSS va al motor y VS va a Arduino",
+      "VSS y VS son el mismo pin conectado dos veces",
+      "VSS es la masa y VS es la alimentación"
+    ],
+    "correcta": 0
+  },
+  {
+    "fase": 1,
+    "pregunta": "¿Qué componente se usa para proteger a Arduino de la corriente del motor?",
+    "opciones": [
+      "Un condensador electrolítico",
+      "Una resistencia de 10 kΩ",
+      "El integrado L293D actuando como etapa de potencia",
+      "Un diodo zener"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 1,
+    "pregunta": "En el L293D, ¿a qué están conectadas OUT1 y OUT2?",
+    "opciones": [
+      "A los pines digitales de Arduino directamente",
+      "A los dos terminales del motor DC",
+      "A los pulsadores del circuito",
+      "A la alimentación de 5V"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 1,
+    "pregunta": "¿Cuántos pines tiene el integrado L293D?",
+    "opciones": [
+      "8 pines",
+      "14 pines",
+      "16 pines",
+      "20 pines"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 2,
+    "pregunta": "¿Qué es un pulsador con configuración pull-down?",
+    "opciones": [
+      "Un pulsador que siempre envía HIGH al pin de Arduino",
+      "Un pulsador con una resistencia conectada a GND que da LOW cuando no se pulsa",
+      "Un pulsador que solo funciona al soltarlo",
+      "Un pulsador conectado directamente a 5V sin resistencia"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 2,
+    "pregunta": "¿Qué valor lógico lee Arduino en un pulsador pull-up cuando NO se está pulsando?",
+    "opciones": [
+      "LOW (0)",
+      "Valor analógico entre 0 y 1023",
+      "HIGH (1)",
+      "Indeterminado"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 2,
+    "pregunta": "¿Qué valor lógico lee Arduino en un pulsador pull-down cuando SÍ se está pulsando?",
+    "opciones": [
+      "LOW (0)",
+      "HIGH (1)",
+      "512 (valor analógico)",
+      "Depende de la resistencia"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 2,
+    "pregunta": "En el pulsador pull-up, ¿dónde está conectada la resistencia de 10 kΩ?",
+    "opciones": [
+      "Entre el pin de Arduino y GND",
+      "Entre el pin de Arduino y 5V",
+      "Entre los dos terminales del pulsador",
+      "No lleva resistencia"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 2,
+    "pregunta": "¿A qué pin de Arduino se conecta el Pulsador 1 (pull-down) en esta actividad?",
+    "opciones": [
+      "Pin A0",
+      "Pin D3",
+      "Pin D2",
+      "Pin D13"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 2,
+    "pregunta": "¿A qué pin de Arduino se conecta el Pulsador 2 (pull-up) en esta actividad?",
+    "opciones": [
+      "Pin D2",
+      "Pin D3",
+      "Pin D4",
+      "Pin D6"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 2,
+    "pregunta": "¿Por qué se usa una resistencia en los pulsadores?",
+    "opciones": [
+      "Para aumentar la velocidad del motor",
+      "Para limitar la corriente del motor",
+      "Para fijar un nivel lógico definido cuando el pulsador no se pulsa y evitar un estado flotante",
+      "Para reducir el ruido del motor"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 2,
+    "pregunta": "¿Qué pin de Arduino controla EN1 del L293D en este montaje?",
+    "opciones": [
+      "D2",
+      "D3",
+      "D5",
+      "D4"
+    ],
+    "correcta": 3
+  },
+  {
+    "fase": 2,
+    "pregunta": "¿Qué pines de Arduino controlan IN1 e IN2 del L293D?",
+    "opciones": [
+      "D2 y D3",
+      "D5 y D6",
+      "D4 y D5",
+      "A0 y A1"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 2,
+    "pregunta": "¿Qué ocurre si no conectamos el GND de Arduino y el GND del L293D al mismo raíl?",
+    "opciones": [
+      "El circuito funciona igual",
+      "El motor gira más rápido",
+      "El circuito puede no funcionar porque no comparten la referencia de 0V",
+      "Arduino se reinicia automáticamente"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 3,
+    "pregunta": "¿Qué combinación de IN1 e IN2 hace que el motor gire en el sentido A?",
+    "opciones": [
+      "IN1 = LOW, IN2 = LOW",
+      "IN1 = HIGH, IN2 = LOW",
+      "IN1 = LOW, IN2 = HIGH",
+      "IN1 = HIGH, IN2 = HIGH"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 3,
+    "pregunta": "¿Qué combinación de IN1 e IN2 hace que el motor se pare?",
+    "opciones": [
+      "IN1 = HIGH, IN2 = HIGH",
+      "IN1 = HIGH, IN2 = LOW",
+      "IN1 = LOW, IN2 = HIGH",
+      "IN1 = LOW, IN2 = LOW"
+    ],
+    "correcta": 3
+  },
+  {
+    "fase": 3,
+    "pregunta": "¿Qué combinación de IN1 e IN2 hace que el motor gire en el sentido B?",
+    "opciones": [
+      "IN1 = HIGH, IN2 = LOW",
+      "IN1 = LOW, IN2 = LOW",
+      "IN1 = LOW, IN2 = HIGH",
+      "IN1 = HIGH, IN2 = HIGH"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 3,
+    "pregunta": "¿Dónde se conectan los cables del motor DC en el L293D?",
+    "opciones": [
+      "A IN1 y IN2",
+      "A VSS y VS",
+      "A OUT1 y OUT2",
+      "Directamente a los pines D5 y D6 de Arduino"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 3,
+    "pregunta": "Al montar el circuito en Tinkercad, ¿cómo se identifica el pin 1 del L293D?",
+    "opciones": [
+      "Es el pin más largo del integrado",
+      "Está marcado con un punto o muesca en el encapsulado, a su izquierda",
+      "Es el pin de color rojo",
+      "Es el pin del centro"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 3,
+    "pregunta": "Si EN1 del L293D no está conectado a HIGH, ¿qué le pasa al motor?",
+    "opciones": [
+      "Gira siempre en sentido A",
+      "Gira a máxima velocidad",
+      "El canal está deshabilitado y el motor no recibe señal aunque IN1 e IN2 estén bien",
+      "Arduino da un error de compilación"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 3,
+    "pregunta": "¿Cuál de estas afirmaciones sobre el montaje en Tinkercad es correcta?",
+    "opciones": [
+      "El motor puede conectarse a cualquier pin de Arduino sin problema",
+      "El L293D no es necesario si el motor es pequeño",
+      "El GND de Arduino y el GND del L293D deben estar conectados entre sí",
+      "IN1 e IN2 se conectan directamente al motor"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 3,
+    "pregunta": "¿Qué pasa si inviertes los cables del motor (OUT1 y OUT2) en el L293D?",
+    "opciones": [
+      "El motor no gira nunca",
+      "El motor gira pero los sentidos A y B quedan intercambiados",
+      "El L293D se quema",
+      "Arduino pierde la conexión"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 3,
+    "pregunta": "¿Cuántas conexiones de GND hay que hacer en este circuito completo?",
+    "opciones": [
+      "Solo una, en Arduino",
+      "Al menos tres: Arduino GND, GND del L293D (pines 4 y 5) y resistencia pull-down del pulsador 1",
+      "No hace falta GND porque Tinkercad lo pone automáticamente",
+      "Solo la del L293D"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 3,
+    "pregunta": "¿Cuál es el nombre correcto del diseño en Tinkercad según las instrucciones?",
+    "opciones": [
+      "Practica2",
+      "Motor_L293D",
+      "Actividad2_NombreApellido",
+      "Circuito_Motor"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 4,
+    "pregunta": "¿En qué bloque naranja se configuran los pines como entrada o salida al inicio del programa?",
+    "opciones": [
+      "Siempre",
+      "Al iniciar la simulación",
+      "Si ... entonces",
+      "Esperar"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 4,
+    "pregunta": "¿Qué bloque naranja se usa para que el código se repita continuamente?",
+    "opciones": [
+      "Al iniciar la simulación",
+      "Repetir ... veces",
+      "Siempre",
+      "Esperar"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 4,
+    "pregunta": "¿Qué bloque morado se usa para leer el estado de un pulsador en Tinkercad?",
+    "opciones": [
+      "Definir estado de pin digital",
+      "Leer pasador (pin digital)",
+      "Definir valor de pin PWM",
+      "Leer pin analógico"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 4,
+    "pregunta": "¿Qué bloque azul se usa para poner IN1 o IN2 del L293D en HIGH o LOW?",
+    "opciones": [
+      "Leer pasador (pin digital)",
+      "Definir grados de servo",
+      "Definir estado de pin digital",
+      "Reproducir tono en pin"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 4,
+    "pregunta": "¿Cuántos bloques 'Si ... entonces, si no' se necesitan como mínimo para esta actividad?",
+    "opciones": [
+      "Ninguno, con un 'Si ... entonces' es suficiente",
+      "Uno, con dos ramas y un caso por defecto (si no)",
+      "Tres, uno por cada estado posible del motor",
+      "Cinco, uno por cada pin usado"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 4,
+    "pregunta": "Si el Pulsador 2 es pull-up, ¿qué condición debe tener el bloque 'Si' para detectar que está pulsado?",
+    "opciones": [
+      "Si pin D3 = HIGH",
+      "Si pin D3 = LOW",
+      "Si pin D3 > 512",
+      "Si pin D3 = 255"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 4,
+    "pregunta": "¿Qué debe ocurrir en el bloque 'Si no' final cuando no se pulsa ningún pulsador?",
+    "opciones": [
+      "IN1 = HIGH, IN2 = HIGH",
+      "El programa se detiene",
+      "IN1 = LOW, IN2 = LOW para parar el motor",
+      "EN1 se pone a LOW"
+    ],
+    "correcta": 2
+  },
+  {
+    "fase": 4,
+    "pregunta": "¿Por qué es importante escribir el pseudocódigo ANTES de montar los bloques en Tinkercad?",
+    "opciones": [
+      "Porque Tinkercad lo exige para iniciar la simulación",
+      "Para pensar la lógica del programa paso a paso y evitar errores al programar",
+      "Para decorar la ficha de actividad",
+      "Porque el pseudocódigo se importa directamente a Tinkercad"
+    ],
+    "correcta": 1
+  },
+  {
+    "fase": 4,
+    "pregunta": "¿En qué categoría de bloques están 'Al iniciar la simulación' y 'Siempre'?",
+    "opciones": [
+      "Entrada (morado)",
+      "Salida (azul)",
+      "Matemáticas (verde)",
+      "Control (naranja)"
+    ],
+    "correcta": 3
+  },
+  {
+    "fase": 4,
+    "pregunta": "¿Qué ocurre si olvidas el caso 'Si no' (motor parado) en el programa?",
+    "opciones": [
+      "El programa da error y no compila",
+      "El motor puede quedarse girando indefinidamente al soltar los pulsadores",
+      "Los pulsadores dejan de funcionar",
+      "Arduino se reinicia solo"
+    ],
+    "correcta": 1
+  }
+];
+
+let alumno = '';
+let testQ = [];
+let current = 0;
+let answers = [];
+let answered = false;
+
+function capitalCheck(s) {
+  const t = s.trim();
+  if (!t) return 'Campo obligatorio.';
+  if (!/^[A-ZÁÉÍÓÚÑÜ]/.test(t)) return 'Debe empezar por mayúscula.';
+  if (t.length < 2) return 'Demasiado corto.';
+  return '';
+}
+
+function startTest() {
+  const n = document.getElementById('inp-nombre').value;
+  const a1 = document.getElementById('inp-ap1').value;
+  const a2 = document.getElementById('inp-ap2').value;
+  const en = capitalCheck(n), ea1 = capitalCheck(a1), ea2 = capitalCheck(a2);
+  document.getElementById('err-nombre').textContent = en;
+  document.getElementById('err-ap1').textContent = ea1;
+  document.getElementById('err-ap2').textContent = ea2;
+  if (en || ea1 || ea2) return;
+  alumno = n.trim() + ' ' + a1.trim() + ' ' + a2.trim();
+  buildTest();
+  show('screen-quiz');
+  renderQ();
+}
+
+function buildTest() {
+  testQ = [];
+  answers = [];
+  current = 0;
+  [1,2,3,4].forEach(fase => {
+    const pool = ALL.filter(q => q.fase === fase);
+    const picked = shuffle(pool).slice(0, 5);
+    testQ = testQ.concat(picked);
+  });
+  testQ = shuffle(testQ);
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function renderQ() {
+  const q = testQ[current];
+  const total = testQ.length;
+  document.getElementById('prog-label').textContent = `Pregunta ${current + 1} de ${total}`;
+  document.getElementById('prog-fill').style.width = ((current / total) * 100) + '%';
+  document.getElementById('q-fase').textContent = `Fase ${q.fase}`;
+  document.getElementById('q-text').textContent = q.pregunta;
+  document.getElementById('q-counter').textContent = `${current + 1} / ${total}`;
+  document.getElementById('btn-next').disabled = true;
+  answered = false;
+
+  const opts = document.getElementById('q-options');
+  opts.innerHTML = '';
+  // Shuffle option order but track original index
+  const indices = shuffle([0,1,2,3]);
+  indices.forEach(i => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    btn.textContent = q.opciones[i];
+    btn.dataset.idx = i;
+    btn.onclick = function() { selectOption(this, q.correcta); };
+    opts.appendChild(btn);
+  });
+
+  const nextBtn = document.getElementById('btn-next');
+  nextBtn.textContent = current === testQ.length - 1 ? 'Ver resultados' : 'Siguiente';
+}
+
+function selectOption(btn, correcta) {
+  if (answered) return;
+  answered = true;
+  const chosen = parseInt(btn.dataset.idx);
+  answers.push({ chosen, correcta });
+
+  document.querySelectorAll('.option-btn').forEach(b => {
+    b.disabled = true;
+    const idx = parseInt(b.dataset.idx);
+    if (idx === correcta) b.classList.add('correct');
+    else if (b === btn && chosen !== correcta) b.classList.add('wrong');
+  });
+
+  document.getElementById('btn-next').disabled = false;
+}
+
+function nextQ() {
+  if (!answered) return;
+  current++;
+  if (current >= testQ.length) {
+    showResult();
+  } else {
+    renderQ();
+  }
+}
+
+function showResult() {
+  show('screen-result');
+  const score = answers.filter(a => a.chosen === a.correcta).length;
+  const pass = score >= 15;
+
+  document.getElementById('res-nombre-label').textContent = alumno;
+  document.getElementById('res-score').textContent = score;
+  document.getElementById('res-verdict').innerHTML = pass
+    ? `<span class="result-pass">✅ TEST SUPERADO — ${score} / 20 ≥ 15</span>`
+    : `<span class="result-fail">❌ No superado — ${score} / 20 (se necesitan 15 o más)</span>`;
+
+  if (pass) {
+    const rsg = document.getElementById('resguardo');
+    rsg.style.display = 'block';
+    document.getElementById('rsg-nombre').textContent = alumno;
+    document.getElementById('rsg-score').textContent = score;
+    document.getElementById('rsg-fecha').textContent = new Date().toLocaleDateString('es-ES', {day:'2-digit',month:'long',year:'numeric'});
+    document.getElementById('retry-block').style.display = 'none';
+    document.getElementById('retry-pass-block').style.display = 'block';
+  } else {
+    document.getElementById('resguardo').style.display = 'none';
+    document.getElementById('retry-block').style.display = 'block';
+    document.getElementById('retry-pass-block').style.display = 'none';
+  }
+
+  // Summary
+  const sum = document.getElementById('summary');
+  sum.innerHTML = '';
+  testQ.forEach((q, i) => {
+    const a = answers[i];
+    const ok = a.chosen === a.correcta;
+    const div = document.createElement('div');
+    div.className = 'summary-item';
+    const chosenText = q.opciones[a.chosen];
+    const correctText = q.opciones[a.correcta];
+    div.innerHTML = `
+      <p class="fase-tag">Fase ${q.fase} · Pregunta ${i+1}</p>
+      <p class="summary-q">${q.pregunta}</p>
+      <span class="summary-opt ${ok ? 'correct' : 'wrong'}">
+        ${ok ? '✓' : '✗'} Tu respuesta: ${chosenText}
+      </span>
+      ${!ok ? `<p class="summary-correct-label">✓ Correcta: ${correctText}</p>` : ''}
+    `;
+    sum.appendChild(div);
+  });
+
+  document.getElementById('prog-fill').style.width = '100%';
+  document.getElementById('prog-label').textContent = 'Test completado';
+}
+
+function retryTest() {
+  buildTest();
+  show('screen-quiz');
+  renderQ();
+}
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+</script>
+</body>
+</html>
